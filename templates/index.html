@@ -1,39 +1,309 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Travel Expense Splitter - Add Participants</title>
+    <title>Expense Splitter - Create or Join a Room</title>
+    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --primary-color: #4361ee;
+            --secondary-color: #3f37c9;
+            --accent-color: #f72585;
+            --light-color: #f8f9fa;
+            --dark-color: #212529;
+        }
+
+        body {
+            background-color: #f5f7fa;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        .card {
+            border-radius: 15px;
+            box-shadow: 0 4px 25px rgba(0, 0, 0, 0.1);
+            border: none;
+        }
+
+        .card-header {
+            background-color: var(--primary-color);
+            color: white;
+            border-radius: 15px 15px 0 0 !important;
+            padding: 1.5rem;
+        }
+
+        .btn-primary {
+            background-color: var(--primary-color);
+            border-color: var(--primary-color);
+        }
+
+        .btn-primary:hover {
+            background-color: var(--secondary-color);
+            border-color: var(--secondary-color);
+        }
+
+        .btn-danger {
+            background-color: var(--accent-color);
+            border-color: var(--accent-color);
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: bold;
+            margin-bottom: 1.5rem;
+        }
+
+        .progress-container {
+            margin-bottom: 2rem;
+        }
+
+        .progress {
+            height: 10px;
+            border-radius: 5px;
+        }
+
+        .form-control {
+            border-radius: 10px;
+            padding: 0.75rem;
+        }
+
+        .input-group-text {
+            border-radius: 10px 0 0 10px;
+            background-color: var(--primary-color);
+            color: white;
+        }
+
+        .options-container {
+            display: flex;
+            margin-top: 2rem;
+        }
+
+        .option-card {
+            flex: 1;
+            background-color: white;
+            border-radius: 15px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            padding: 1.5rem;
+            margin: 0 10px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .option-card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+        }
+
+        .option-icon {
+            font-size: 3rem;
+            color: var(--primary-color);
+            margin-bottom: 1rem;
+        }
+
+        .option-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+
+        .tab-content {
+            padding: 2rem 0;
+        }
+
+        .room-code {
+            letter-spacing: 5px;
+            font-size: 1.5rem;
+            text-align: center;
+            font-weight: bold;
+        }
+
+        .or-divider {
+            display: flex;
+            align-items: center;
+            text-align: center;
+            margin: 2rem 0;
+            color: #6c757d;
+        }
+
+        .or-divider::before,
+        .or-divider::after {
+            content: '';
+            flex: 1;
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        .or-divider::before {
+            margin-right: 1rem;
+        }
+
+        .or-divider::after {
+            margin-left: 1rem;
+        }
+
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1100;
+        }
+
+        .custom-toast {
+            background-color: white;
+            color: var(--dark-color);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+            border-left: 5px solid var(--primary-color);
+            border-radius: 10px;
+        }
+    </style>
 </head>
 <body>
-<div class="container mt-5">
-    <h2>Step 1: Add Participants</h2>
-    <form id="participantForm" method="POST" action="/participants">
-        <div id="participantInputs">
-            <div class="mb-3 d-flex align-items-center participant-row">
-                <input type="text" name="participants[]" class="form-control me-2" placeholder="Participant name" required>
-                <button type="button" class="btn btn-danger btn-sm remove-btn">Remove</button>
+    <!-- Toast notification container -->
+    <div class="toast-container"></div>
+
+    <div class="container mt-5">
+        <div class="card">
+            <div class="card-header">
+                <div class="logo">
+                    <i class="fas fa-plane-departure me-2"></i> Expense Splitter
+                </div>
+
+                <!-- Progress bar -->
+                <div class="progress-container">
+                    <div class="d-flex justify-content-between mb-1">
+                        <span>Step 1: Create or Join a Room</span>
+                        <span>1/4</span>
+                    </div>
+                    <div class="progress">
+                        <div class="progress-bar bg-success" role="progressbar" style="width: 25%" aria-valuenow="25" aria-valuemin="0" aria-valuemax="100"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card-body p-4">
+                <ul class="nav nav-tabs" id="roomTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="create-tab" data-bs-toggle="tab" data-bs-target="#create" type="button" role="tab" aria-controls="create" aria-selected="true">
+                            <i class="fas fa-plus-circle me-2"></i>Create a Room
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="join-tab" data-bs-toggle="tab" data-bs-target="#join" type="button" role="tab" aria-controls="join" aria-selected="false">
+                            <i class="fas fa-sign-in-alt me-2"></i>Join a Room
+                        </button>
+                    </li>
+                </ul>
+
+                <div class="tab-content" id="roomTabsContent">
+                    <!-- Create Room Tab -->
+                    <div class="tab-pane fade show active" id="create" role="tabpanel" aria-labelledby="create-tab">
+                        <form id="createRoomForm" action="/create_room" method="POST">
+                            <div class="mb-4">
+                                <label for="roomName" class="form-label"><i class="fas fa-tag me-2"></i>Room Name (optional)</label>
+                                <input type="text" id="roomName" name="roomName" class="form-control" placeholder="e.g., Japan Trip 2025">
+                                <small class="text-muted">Give your room a name to easily identify it later</small>
+                            </div>
+
+                            <div class="mb-4 d-none">
+                                <label class="form-label"><i class="fas fa-key me-2"></i>Your Room Code</label>
+                                <div class="room-code p-3 bg-light rounded" id="generatedCode"></div>
+                                <small class="text-muted text-center d-block mt-2">Share this code with others to let them join your room</small>
+                            </div>
+
+                            <div class="text-center">
+                                <button type="submit" class="btn btn-primary btn-lg">
+                                    <i class="fas fa-plus-circle me-2"></i>Create Room and Continue
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- Join Room Tab -->
+                    <div class="tab-pane fade" id="join" role="tabpanel" aria-labelledby="join-tab">
+                        <form id="joinRoomForm" action="/join_room" method="POST">
+                            <div class="mb-4">
+                                <label for="roomCode" class="form-label"><i class="fas fa-key me-2"></i>Enter Room Code</label>
+                                <input type="text" id="roomCode" name="roomCode" class="form-control room-code" maxlength="6" placeholder="XXXXXX" required>
+                                <small class="text-muted text-center d-block mt-2">Enter the 6-character code shared with you</small>
+                            </div>
+
+                            <div class="text-center">
+                                <button type="submit" class="btn btn-primary btn-lg">
+                                    <i class="fas fa-sign-in-alt me-2"></i>Join Room
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+<!--                <div class="or-divider mt-5 mb-4">-->
+<!--                    <span>OR</span>-->
+<!--                </div>-->
+
+<!--                <div class="text-center">-->
+<!--                    <a href="/quick_start" class="btn btn-outline-primary">-->
+<!--                        <i class="fas fa-bolt me-2"></i>Quick Start (Without Room)-->
+<!--                    </a>-->
+<!--                    <div class="mt-2">-->
+<!--                        <small class="text-muted">Skip room creation for a single-device experience</small>-->
+<!--                    </div>-->
+<!--                </div>-->
             </div>
         </div>
-        <button type="button" class="btn btn-secondary" onclick="addParticipantField()">Add More</button>
-        <button type="submit" class="btn btn-primary">Next</button>
-    </form>
-</div>
+    </div>
 
-<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-<script>
-function addParticipantField() {
-    $('#participantInputs').append(`
-        <div class="mb-3 d-flex align-items-center participant-row">
-            <input type="text" name="participants[]" class="form-control me-2" placeholder="Participant name" required>
-            <button type="button" class="btn btn-danger btn-sm remove-btn">Remove</button>
-        </div>
-    `);
-}
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Format room code input
+        document.getElementById('roomCode').addEventListener('input', function(e) {
+            e.target.value = e.target.value.toUpperCase();
+        });
 
-$(document).on('click', '.remove-btn', function() {
-    $(this).closest('.participant-row').remove();
-});
-</script>
+        function showToast(message, type = 'success') {
+            const toastContainer = document.querySelector('.toast-container');
+            const iconClass = type === 'success' ? 'fas fa-check-circle text-success' : 'fas fa-exclamation-circle text-danger';
+
+            const toastHtml = `
+                <div class="custom-toast p-3 mb-3">
+                    <div class="d-flex">
+                        <div>
+                            <i class="${iconClass} me-2"></i>
+                        </div>
+                        <div>
+                            ${message}
+                        </div>
+                        <div class="ms-auto">
+                            <button type="button" class="btn-close" onclick="this.parentNode.parentNode.parentNode.remove()"></button>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            toastContainer.insertAdjacentHTML('beforeend', toastHtml);
+
+            // Auto remove after 3 seconds
+            setTimeout(() => {
+                const toasts = document.querySelectorAll('.custom-toast');
+                if (toasts.length > 0) {
+                    toasts[0].remove();
+                }
+            }, 3000);
+        }
+
+        // Handle form submission
+        document.getElementById('joinRoomForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const roomCode = document.getElementById('roomCode').value.trim();
+
+            if(roomCode.length !== 6) {
+                showToast('Room code must be 6 characters', 'error');
+                return;
+            }
+
+            // Submit the form
+            this.submit();
+        });
+    </script>
 </body>
 </html>

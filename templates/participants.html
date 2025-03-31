@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Expense Splitter - Add Participants</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --primary-color: #4361ee;
+            --secondary-color: #3f37c9;
+            --accent-color: #f72585;
+            --light-color: #f8f9fa;
+            --dark-color: #212529;
+        }
+
+        body {
+            background-color: #f5f7fa;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        .card {
+            border-radius: 15px;
+            box-shadow: 0 4px 25px rgba(0, 0, 0, 0.1);
+            border: none;
+        }
+
+        .card-header {
+            background-color: var(--primary-color);
+            color: white;
+            border-radius: 15px 15px 0 0 !important;
+            padding: 1.5rem;
+        }
+
+        .btn-primary {
+            background-color: var(--primary-color);
+            border-color: var(--primary-color);
+        }
+
+        .btn-primary:hover {
+            background-color: var(--secondary-color);
+            border-color: var(--secondary-color);
+        }
+
+        .btn-danger {
+            background-color: var(--accent-color);
+            border-color: var(--accent-color);
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: bold;
+            margin-bottom: 1.5rem;
+        }
+
+        .progress-container {
+            margin-bottom: 2rem;
+        }
+
+        .progress {
+            height: 10px;
+            border-radius: 5px;
+        }
+
+        .participant-row {
+            transition: all 0.3s ease;
+            margin-bottom: 1rem;
+        }
+
+        .participant-row:hover {
+            transform: translateX(5px);
+        }
+
+        .form-control {
+            border-radius: 10px;
+            padding: 0.75rem;
+        }
+
+        .remove-btn {
+            border-radius: 50%;
+            width: 36px;
+            height: 36px;
+            padding: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .add-more-btn {
+            margin-right: 10px;
+        }
+
+        .room-info {
+            background-color: rgba(67, 97, 238, 0.1);
+            border-radius: 10px;
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .room-code {
+            font-weight: bold;
+            letter-spacing: 2px;
+        }
+
+        .copy-btn {
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .copy-btn:hover {
+            color: var(--primary-color);
+        }
+
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1100;
+        }
+
+        .custom-toast {
+            background-color: white;
+            color: var(--dark-color);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+            border-left: 5px solid var(--primary-color);
+            border-radius: 10px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Toast notification container -->
+    <div class="toast-container"></div>
+
+    <div class="container mt-5">
+        <div class="card">
+            <div class="card-header">
+                <div class="logo">
+                    <i class="fas fa-plane-departure me-2"></i> Expense Splitter
+                </div>
+
+                <!-- Progress bar -->
+                <div class="progress-container">
+                    <div class="d-flex justify-content-between mb-1">
+                        <span>Step 2: Add Participants</span>
+                        <span>2/4</span>
+                    </div>
+                    <div class="progress">
+                        <div class="progress-bar bg-success" role="progressbar" style="width: 50%" aria-valuenow="50" aria-valuemin="0" aria-valuemax="100"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card-body p-4">
+                {% if room_code %}
+                <div class="room-info">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <i class="fas fa-users me-2"></i>
+                            <span>Room: <strong>{{ room_name or "Unnamed Room" }}</strong></span>
+                        </div>
+                        <div>
+                            <span class="me-2">Code: <span class="room-code">{{ room_code }}</span></span>
+                            <i class="fas fa-copy copy-btn" onclick="copyRoomCode('{{ room_code }}')"></i>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+                <form id="participantForm" method="POST" action="/participants">
+                    {% if room_code %}
+                    <input type="hidden" name="room_code" value="{{ room_code }}">
+                    {% endif %}
+
+                    <div id="participantInputs">
+                        <div class="mb-3 d-flex align-items-center participant-row">
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="fas fa-user"></i></span>
+                                <input type="text" name="participants[]" class="form-control" placeholder="Participant name" required>
+                            </div>
+                            <button type="button" class="btn btn-danger remove-btn ms-2">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-between mt-4">
+                        <button type="button" class="btn btn-outline-primary add-more-btn" onclick="addParticipantField()">
+                            <i class="fas fa-plus me-2"></i>Add More
+                        </button>
+                        <button type="submit" class="btn btn-primary">
+                            Next <i class="fas fa-arrow-right ms-2"></i>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script>
+    function addParticipantField() {
+        $('#participantInputs').append(`
+            <div class="mb-3 d-flex align-items-center participant-row">
+                <div class="input-group">
+                    <span class="input-group-text"><i class="fas fa-user"></i></span>
+                    <input type="text" name="participants[]" class="form-control" placeholder="Participant name" required>
+                </div>
+                <button type="button" class="btn btn-danger remove-btn ms-2">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        `);
+
+        // Auto-focus the newly added input
+        $('#participantInputs .participant-row:last-child input').focus();
+    }
+
+    $(document).on('click', '.remove-btn', function() {
+        // Only allow deletion if there's more than one participant field
+        if ($('.participant-row').length > 1) {
+            $(this).closest('.participant-row').remove();
+        } else {
+            alert('You need at least one participant');
+        }
+    });
+
+    // Add at least 2 participant fields by default
+    $(document).ready(function() {
+        addParticipantField();
+    });
+
+    function copyRoomCode(code) {
+        navigator.clipboard.writeText(code).then(function() {
+            showToast('Room code copied to clipboard!');
+        }, function() {
+            showToast('Failed to copy room code', 'error');
+        });
+    }
+
+    function showToast(message, type = 'success') {
+        const toastContainer = document.querySelector('.toast-container');
+        const iconClass = type === 'success' ? 'fas fa-check-circle text-success' : 'fas fa-exclamation-circle text-danger';
+
+        const toastHtml = `
+            <div class="custom-toast p-3 mb-3">
+                <div class="d-flex">
+                    <div>
+                        <i class="${iconClass} me-2"></i>
+                    </div>
+                    <div>
+                        ${message}
+                    </div>
+                    <div class="ms-auto">
+                        <button type="button" class="btn-close" onclick="this.parentNode.parentNode.parentNode.remove()"></button>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        toastContainer.insertAdjacentHTML('beforeend', toastHtml);
+
+        // Auto remove after 3 seconds
+        setTimeout(() => {
+            const toasts = document.querySelectorAll('.custom-toast');
+            if (toasts.length > 0) {
+                toasts[0].remove();
+            }
+        }, 3000);
+    }
+    </script>
+</body>
+</html>
