@@ -1,13 +1,17 @@
 from datetime import datetime
 import os
 from dotenv import load_dotenv
-from flask import Flask, render_template, request, redirect, url_for, session, jsonify
+from flask import Flask, render_template, request, redirect, url_for, session, jsonify, flash
 from functools import wraps
 from expense_manager import ExpenseManager
 from flask_socketio import SocketIO, emit
 
 load_dotenv(dotenv_path='.env')
 PORT = int(os.environ.get("PORT", 8080))
+
+# Default value for GROUP_TTL if not specified in .env
+GROUP_TTL = int(os.environ.get("GROUP_TTL", 60))
+print(f"Group TTL set to {GROUP_TTL} days")
 app = Flask(__name__)
 app.secret_key = os.getenv('SECRET_KEY')
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet')  # or 'threading' if eventlet not used
@@ -33,6 +37,9 @@ def group_required(f):
         manager = get_manager()
         group = manager.get_group(group_code)
         if not group:
+            # Group might be expired
+            flash("This group no longer exists or has expired.", "danger")
+            session.pop('group_code', None)
             return redirect(url_for('index'))
 
         session['group_code'] = group_code
@@ -66,9 +73,35 @@ def create_room():
     manager = get_manager()
     room_name = request.form.get('roomName', '').strip()
     group_code = manager.create_group(room_name)
+
+    if group_code is None:
+        # Group creation failed due to limit being reached
+        flash(
+            "We're currently experiencing high traffic. The maximum number of active groups has been reached. Please try again later or join an existing group.",
+            "danger")
+        return redirect(url_for('index'))
+
     session['group_code'] = group_code
     return redirect(url_for('participants'))
 
+'''
+curl http://{host}:{port}/system_status?admin_key=admin_key_inside_env
+'''
+@app.route('/system_status', methods=['GET'])
+def system_status():
+    if request.args.get('admin_key') != os.environ.get('ADMIN_KEY', 'admin'):
+        return jsonify({'error': 'Unauthorized'}), 403
+
+    manager = get_manager()
+    active_groups = manager.get_total_active_groups()
+    capacity = (active_groups / manager.MAX_GROUPS) * 100
+
+    return jsonify({
+        'active_groups': active_groups,
+        'max_groups': manager.MAX_GROUPS,
+        'capacity_percentage': f"{capacity:.1f}%",
+        'is_at_capacity': active_groups >= manager.MAX_GROUPS
+    })
 
 @app.route('/join_room', methods=['POST'])
 def join_room():
@@ -124,7 +157,10 @@ def expenses():
                            group_code=group_code,
                            group_name=group.name,
                            participants=group.participants,
-                           expenses=group.expenses)
+                           expenses=group.expenses,
+                           days_left=group.days_until_expiration(),
+                           is_expiring_soon=group.is_expiring_soon(),
+                           expiration_date=group.expires_at().strftime('%d %b %Y'))
 
 
 @app.route('/add_expense', methods=['POST'])
@@ -147,7 +183,6 @@ def add_expense():
     return jsonify({'status': 'error', 'message': 'Failed to add expense'})
 
 
-
 @app.route('/summary')
 @group_required
 @participants_required
@@ -160,7 +195,10 @@ def summary():
     return render_template('summary.html',
                            group_code=group_code,
                            group_name=group.name,
-                           settlements=settlements)
+                           settlements=settlements,
+                           days_left=group.days_until_expiration(),
+                           is_expiring_soon=group.is_expiring_soon(),
+                           expiration_date=group.expires_at().strftime('%d %b %Y'))
 
 
 @app.route('/clear')
@@ -191,9 +229,18 @@ def delete_expense(expense_id):
         return jsonify({'status': 'success'})
     return jsonify({'status': 'error', 'message': 'Expense not found'})
 
-# if __name__ == '__main__':
-#     socketio.run(app, debug=True)
+# Schedule regular cleanup
+@app.before_request
+def cleanup_expired_groups():
+    manager = get_manager()
+    manager.clean_expired_groups()
+
+def check_environment():
+    ttl = os.environ.get('GROUP_TTL')
+    if ttl is None:
+        print("Warning: GROUP_TTL not found in environment. Using default value of 60 days.")
 
 if __name__ == '__main__':
     print(f'Server started at {datetime.now()} on port {PORT}')
+    check_environment()
     socketio.run(app, host='0.0.0.0', port=PORT, allow_unsafe_werkzeug=True)

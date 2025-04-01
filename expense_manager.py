@@ -1,6 +1,7 @@
 import random
 import string
 import uuid
+import os
 from datetime import datetime
 
 from group import Group
@@ -8,8 +9,17 @@ from group import Group
 class ExpenseManager:
     def __init__(self):
         self.groups = {}
+        self.MAX_GROUPS = int(os.environ.get('MAX_GROUPS', 1000))  # Maximum number of groups allowed
 
     def create_group(self, name, created_by=None):
+        # Clean up expired groups first
+        self.clean_expired_groups()
+
+        # Check if we've reached the maximum group limit
+        if len(self.groups) >= self.MAX_GROUPS:
+            print(f"Currently reaching MAX_GROUPS limit ({self.MAX_GROUPS})")
+            return None  # Return None to indicate failure due to limit
+
         while True:
             code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6)).upper()
             if code not in self.groups:
@@ -20,7 +30,20 @@ class ExpenseManager:
         return code
 
     def get_group(self, code):
+        # Clean up expired groups before returning
+        self.clean_expired_groups()
         return self.groups.get(code)
+
+    def get_total_active_groups(self):
+        """Return the current number of active groups"""
+        self.clean_expired_groups()  # Make sure count is accurate
+        return len(self.groups)
+
+    def clean_expired_groups(self):
+        """Remove all expired groups"""
+        expired_codes = [code for code, group in self.groups.items() if group.is_expired()]
+        for code in expired_codes:
+            del self.groups[code]
 
     def add_participant(self, group_code, name):
         group = self.get_group(group_code)
