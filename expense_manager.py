@@ -12,8 +12,9 @@ class ExpenseManager:
         self.MAX_GROUPS = int(os.environ.get('MAX_GROUPS', 1000))  # Maximum number of groups allowed
 
     def create_group(self, name, created_by=None):
-        # Clean up expired groups first
+        # Clean up expired and inactive groups first
         self.clean_expired_groups()
+        self.clean_inactive_groups()
 
         # Check if we've reached the maximum group limit
         if len(self.groups) >= self.MAX_GROUPS:
@@ -30,13 +31,15 @@ class ExpenseManager:
         return code
 
     def get_group(self, code):
-        # Clean up expired groups before returning
+        # Clean up expired and inactive groups before returning
         self.clean_expired_groups()
+        self.clean_inactive_groups()
         return self.groups.get(code)
 
     def get_total_active_groups(self):
         """Return the current number of active groups"""
         self.clean_expired_groups()  # Make sure count is accurate
+        self.clean_inactive_groups()
         return len(self.groups)
 
     def clean_expired_groups(self):
@@ -45,10 +48,17 @@ class ExpenseManager:
         for code in expired_codes:
             del self.groups[code]
 
+    def clean_inactive_groups(self):
+        """Remove all inactive groups (no activity for 7 days)"""
+        inactive_codes = [code for code, group in self.groups.items() if group.is_inactive()]
+        for code in inactive_codes:
+            del self.groups[code]
+
     def add_participant(self, group_code, name):
         group = self.get_group(group_code)
         if group and name not in group.participants:
             group.participants.append(name)
+            group.update_activity()  # Update activity timestamp
             return True
         return False
 
@@ -63,6 +73,7 @@ class ExpenseManager:
                 'involved': involved,
                 'timestamp': datetime.now()
             })
+            group.update_activity()  # Update activity timestamp
             return True
         return False
 
@@ -122,4 +133,7 @@ class ExpenseManager:
 
         before = len(group.expenses)
         group.expenses = [e for e in group.expenses if e['id'] != expense_id]
-        return len(group.expenses) < before
+        if len(group.expenses) < before:
+            group.update_activity()  # Update activity timestamp on successful delete
+            return True
+        return False

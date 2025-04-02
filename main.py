@@ -37,8 +37,8 @@ def group_required(f):
         manager = get_manager()
         group = manager.get_group(group_code)
         if not group:
-            # Group might be expired
-            flash("This group no longer exists or has expired.", "danger")
+            # Group might be expired or inactive
+            flash("This group no longer exists or has been removed due to inactivity.", "danger")
             session.pop('group_code', None)
             return redirect(url_for('index'))
 
@@ -142,6 +142,8 @@ def set_participants():
         if p and p not in group.participants:
             group.participants.append(p)
 
+    group.update_activity()  # Update activity timestamp when participants are set
+
     return redirect(url_for('expenses', group=group_code))
 
 
@@ -153,6 +155,11 @@ def expenses():
     group_code = get_current_group_code()
     group = manager.get_group(group_code)
 
+    # Check for inactivity warning
+    if group.is_close_to_inactive():
+        days_left = group.inactivity_days - group.days_since_activity()
+        flash(f"Warning: This group will be removed in {days_left} days if no new expenses are added.", "warning")
+
     return render_template('expenses.html',
                            group_code=group_code,
                            group_name=group.name,
@@ -160,6 +167,9 @@ def expenses():
                            expenses=group.expenses,
                            days_left=group.days_until_expiration(),
                            is_expiring_soon=group.is_expiring_soon(),
+                           days_since_activity=group.days_since_activity(),
+                           inactivity_limit=group.inactivity_days,
+                           is_close_to_inactive=group.is_close_to_inactive(),
                            expiration_date=group.expires_at().strftime('%d %b %Y'))
 
 
@@ -192,12 +202,20 @@ def summary():
     group = manager.get_group(group_code)
     settlements = manager.get_settlements(group_code)
 
+    # Check for inactivity warning
+    if group.is_close_to_inactive():
+        days_left = group.inactivity_days - group.days_since_activity()
+        flash(f"Warning: This group will be removed in {days_left} days if no new expenses are added.", "warning")
+
     return render_template('summary.html',
                            group_code=group_code,
                            group_name=group.name,
                            settlements=settlements,
                            days_left=group.days_until_expiration(),
                            is_expiring_soon=group.is_expiring_soon(),
+                           days_since_activity=group.days_since_activity(),
+                           inactivity_limit=group.inactivity_days,
+                           is_close_to_inactive=group.is_close_to_inactive(),
                            expiration_date=group.expires_at().strftime('%d %b %Y'))
 
 
@@ -209,6 +227,7 @@ def clear_group():
     group = manager.get_group(group_code)
     if group:
         group.expenses = []
+        group.update_activity()  # Update activity timestamp when expenses are cleared
     return redirect(url_for('expenses', group=group_code))
 
 
@@ -234,11 +253,15 @@ def delete_expense(expense_id):
 def cleanup_expired_groups():
     manager = get_manager()
     manager.clean_expired_groups()
+    manager.clean_inactive_groups()  # Also clean inactive groups
 
 def check_environment():
     ttl = os.environ.get('GROUP_TTL')
+    inactivity_days = os.environ.get('GROUP_INACTIVE_MAX')
     if ttl is None:
         print("Warning: GROUP_TTL not found in environment. Using default value of 60 days.")
+    if inactivity_days is None:
+        print("Warning: GROUP_INACTIVE_MAX not found in environment. Using default value of 7 days.")
 
 if __name__ == '__main__':
     print(f'Server started at {datetime.now()} on port {PORT}')

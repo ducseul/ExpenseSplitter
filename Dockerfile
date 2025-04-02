@@ -15,15 +15,12 @@ RUN pip install --no-cache-dir -r requirements.txt && \
     rm -rf /var/lib/apt/lists/*
 
 # Copy only the necessary files
-COPY expense_manager.py group.py main.py start_server.sh ./
+COPY expense_manager.py group.py main.py ./
 COPY templates/ ./templates/
 COPY .env ./
-
-# Make the start script executable
-RUN chmod +x start_server.sh
 
 # Expose any necessary ports (adjust as needed)
 EXPOSE 80
 
-# Run the start script when the container launches
-CMD ["./start_server.sh"]
+# Run gunicorn directly instead of using a start script
+CMD ["gunicorn", "-w", "1", "-k", "eventlet", "-b", "0.0.0.0:80", "--timeout", "300", "--access-logfile", "-", "--error-logfile", "-", "--log-level", "debug", "main:app"]

@@ -8,10 +8,31 @@ class Group:
         self.name = name
         self.created_by = created_by
         self.created_at = datetime.now()
+        self.last_activity = datetime.now()  # Track last activity time
         self.participants = []
         self.expenses = []
         # Get TTL from environment variable with default of 60 days
         self.ttl_days = int(os.environ.get('GROUP_TTL', 60))
+        self.inactivity_days = int(os.environ.get('GROUP_INACTIVE_MAX', 7))
+
+    def update_activity(self):
+        """Update the last activity timestamp to now"""
+        self.last_activity = datetime.now()
+
+    def days_since_activity(self):
+        """Return the number of days since the last activity"""
+        now = datetime.now()
+        days = (now - self.last_activity).days
+        return days
+
+    def is_inactive(self):
+        """Check if the group is inactive (no expenses added for 7 days)"""
+        return self.days_since_activity() >= self.inactivity_days
+
+    def is_close_to_inactive(self):
+        """Check if the group is close to being marked inactive (< 3 days)"""
+        days_left = self.inactivity_days - self.days_since_activity()
+        return 0 < days_left <= 3
 
     def expires_at(self):
         """Return the expiration date of the group (TTL days after creation)"""
