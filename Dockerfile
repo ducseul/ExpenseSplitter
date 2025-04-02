@@ -15,12 +15,12 @@ RUN pip install --no-cache-dir -r requirements.txt && \
     rm -rf /var/lib/apt/lists/*
 
 # Copy only the necessary files
-COPY expense_manager.py group.py main.py ./
+COPY expense_manager.py group.py main.py backup_manager.py ./
 COPY templates/ ./templates/
 COPY .env ./
 
 # Expose any necessary ports (adjust as needed)
-EXPOSE 80
+EXPOSE 8088
 
 # Run gunicorn directly instead of using a start script
-CMD ["gunicorn", "-w", "1", "-k", "eventlet", "-b", "0.0.0.0:80", "--timeout", "300", "--access-logfile", "-", "--error-logfile", "-", "--log-level", "debug", "main:app"]
+CMD ["python", "main.py"]

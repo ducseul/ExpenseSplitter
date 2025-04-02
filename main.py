@@ -14,7 +14,6 @@ PORT = int(os.environ.get("PORT", 8080))
 
 # Default value for GROUP_TTL if not specified in .env
 GROUP_TTL = int(os.environ.get("GROUP_TTL", 60))
-print(f"Group TTL set to {GROUP_TTL} days")
 app = Flask(__name__)
 app.secret_key = os.getenv('SECRET_KEY')
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet')  # or 'threading' if eventlet not used
@@ -283,6 +282,7 @@ def force_backup():
 # Schedule regular cleanup
 @app.before_request
 def cleanup_expired_groups():
+    print(f"{request.remote_addr}: {request.method} {request.url}")
     manager = get_manager()
     manager.clean_expired_groups()
     manager.clean_inactive_groups()  # Also clean inactive groups
@@ -295,17 +295,17 @@ def check_environment():
     if ttl is None:
         print("Warning: GROUP_TTL not found in environment. Using default value of 60 days.")
     else:
-        print("GROUP_TTL: {}".format(ttl))
+        print(f"GROUP_TTL: {ttl}")
 
     if inactivity_days is None:
         print("Warning: GROUP_INACTIVE_MAX not found in environment. Using default value of 7 days.")
     else:
-        print("GROUP_INACTIVE_MAX: {}".format(inactivity_days))
+        print(f"GROUP_INACTIVE_MAX: {inactivity_days}")
 
     if backup_interval_seconds is None:
         print("Warning: BACKUP_INTERVAL_SECONDS is not found in environment. Using default value of 3600 seconds.")
     else:
-        print("BACKUP_INTERVAL_SECONDS: {}".format(backup_interval_seconds))
+        print(f"BACKUP_INTERVAL_SECONDS: {backup_interval_seconds}")
 
 
 # Setup signal handlers for graceful shutdown
