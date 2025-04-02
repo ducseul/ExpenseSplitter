@@ -52,3 +52,6 @@ class Group:
         """Check if the group is expiring within 14 days"""
         days = self.days_until_expiration()
         return 0 < days <= 14
+
+    def __str__(self):
+        return f"Group {self.code} - {self.name} with {len(self.participants)} participants and {len(self.expenses)} expenses"

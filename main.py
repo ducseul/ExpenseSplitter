@@ -1,9 +1,12 @@
 from datetime import datetime
 import os
+import signal
+import sys
 from dotenv import load_dotenv
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify, flash
 from functools import wraps
 from expense_manager import ExpenseManager
+from backup_manager import BackupManager
 from flask_socketio import SocketIO, emit
 
 load_dotenv(dotenv_path='.env')
@@ -16,7 +19,12 @@ app = Flask(__name__)
 app.secret_key = os.getenv('SECRET_KEY')
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet')  # or 'threading' if eventlet not used
 
+# Initialize expense manager and backup system
 expense_manager = ExpenseManager()
+backup_manager = BackupManager(expense_manager,
+                               backup_file='backup.bak',
+                               interval_seconds=int(os.environ.get("BACKUP_INTERVAL_SECONDS", 3600)))
+
 
 def get_manager():
     global expense_manager
@@ -44,6 +52,7 @@ def group_required(f):
 
         session['group_code'] = group_code
         return f(*args, **kwargs)
+
     return decorated_function
 
 
@@ -60,6 +69,7 @@ def participants_required(f):
             return redirect(url_for('index'))
 
         return f(*args, **kwargs)
+
     return decorated_function
 
 
@@ -84,6 +94,7 @@ def create_room():
     session['group_code'] = group_code
     return redirect(url_for('participants'))
 
+
 '''
 curl http://{host}:{port}/system_status?admin_key=admin_key_inside_env
 '''
@@ -102,6 +113,7 @@ def system_status():
         'capacity_percentage': f"{capacity:.1f}%",
         'is_at_capacity': active_groups >= manager.MAX_GROUPS
     })
+
 
 @app.route('/join_room', methods=['POST'])
 def join_room():
@@ -189,6 +201,8 @@ def add_expense():
 
     if success:
         socketio.emit('expense_added', {'group': group_code})
+        # Create a backup after adding an expense
+        backup_manager.create_backup()
         return jsonify({'status': 'success'})
     return jsonify({'status': 'error', 'message': 'Failed to add expense'})
 
@@ -228,6 +242,8 @@ def clear_group():
     if group:
         group.expenses = []
         group.update_activity()  # Update activity timestamp when expenses are cleared
+        # Create a backup after clearing expenses
+        backup_manager.create_backup()
     return redirect(url_for('expenses', group=group_code))
 
 
@@ -235,6 +251,7 @@ def clear_group():
 def leave_group():
     session.pop('group_code', None)
     return redirect(url_for('index'))
+
 
 @app.route('/delete_expense/<expense_id>', methods=['DELETE'])
 @group_required
@@ -245,8 +262,23 @@ def delete_expense(expense_id):
     success = manager.delete_expense(group_code, expense_id)
     if success:
         socketio.emit('expense_added', {'group': group_code})  # refresh all clients
+        # Create a backup after deleting an expense
+        backup_manager.create_backup()
         return jsonify({'status': 'success'})
     return jsonify({'status': 'error', 'message': 'Expense not found'})
+
+
+# Manual backup endpoint - could be useful for testing
+@app.route('/force_backup', methods=['GET'])
+def force_backup():
+    if request.args.get('admin_key') != os.environ.get('ADMIN_KEY', 'admin'):
+        return jsonify({'error': 'Unauthorized'}), 403
+
+    success = backup_manager.create_backup()
+    if success:
+        return jsonify({'status': 'success', 'message': 'Manual backup created successfully'})
+    return jsonify({'status': 'error', 'message': 'Failed to create backup'})
+
 
 # Schedule regular cleanup
 @app.before_request
@@ -255,15 +287,58 @@ def cleanup_expired_groups():
     manager.clean_expired_groups()
     manager.clean_inactive_groups()  # Also clean inactive groups
 
+
 def check_environment():
     ttl = os.environ.get('GROUP_TTL')
     inactivity_days = os.environ.get('GROUP_INACTIVE_MAX')
+    backup_interval_seconds =  os.environ.get("BACKUP_INTERVAL_SECONDS")
     if ttl is None:
         print("Warning: GROUP_TTL not found in environment. Using default value of 60 days.")
+    else:
+        print("GROUP_TTL: {}".format(ttl))
+
     if inactivity_days is None:
         print("Warning: GROUP_INACTIVE_MAX not found in environment. Using default value of 7 days.")
+    else:
+        print("GROUP_INACTIVE_MAX: {}".format(inactivity_days))
+
+    if backup_interval_seconds is None:
+        print("Warning: BACKUP_INTERVAL_SECONDS is not found in environment. Using default value of 3600 seconds.")
+    else:
+        print("BACKUP_INTERVAL_SECONDS: {}".format(backup_interval_seconds))
+
+
+# Setup signal handlers for graceful shutdown
+def signal_handler(sig, frame):
+    print("Shutting down gracefully...")
+    # Create a final backup before exiting
+    backup_manager.create_backup()
+    backup_manager.stop()
+    print("Final backup created. Exiting...")
+    sys.exit(0)
+
+
+# Register signal handlers
+signal.signal(signal.SIGINT, signal_handler)
+signal.signal(signal.SIGTERM, signal_handler)
 
 if __name__ == '__main__':
     print(f'Server started at {datetime.now()} on port {PORT}')
     check_environment()
-    socketio.run(app, host='0.0.0.0', port=PORT, allow_unsafe_werkzeug=True)
+
+    # Try to load data from backup file if it exists
+    if backup_manager.load_backup():
+        print(f"Successfully loaded data from backup file with {len(expense_manager.groups)} groups")
+    else:
+        print("No backup data loaded, starting with empty state")
+
+    # Start the backup scheduler
+    backup_manager.start()
+
+    try:
+        socketio.run(app, host='0.0.0.0', port=PORT, allow_unsafe_werkzeug=True)
+    finally:
+        # Ensure backup is created when shutting down
+        print("Server shutting down, creating final backup...")
+        backup_manager.create_backup()
+        backup_manager.stop()

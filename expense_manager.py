@@ -2,6 +2,7 @@ import random
 import string
 import uuid
 import os
+import pickle
 from datetime import datetime
 
 from group import Group
@@ -137,3 +138,7 @@ class ExpenseManager:
             group.update_activity()  # Update activity timestamp on successful delete
             return True
         return False
+
+    # For debugging purposes
+    def __str__(self):
+        return f"ExpenseManager with {len(self.groups)} active groups"
